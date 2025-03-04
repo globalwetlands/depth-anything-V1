@@ -36,10 +36,12 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 
+
 class Trainer(BaseTrainer):
     def __init__(self, config, model, train_loader, test_loader=None, device=None):
-        super().__init__(config, model, train_loader,
-                         test_loader=test_loader, device=device)
+        super().__init__(
+            config, model, train_loader, test_loader=test_loader, device=device
+        )
         self.device = device
         self.silog_loss = SILogLoss()
         self.grad_loss = GradL1Loss()
@@ -52,27 +54,36 @@ class Trainer(BaseTrainer):
         batch["depth"].shape : batch_size, 1, h, w
         """
 
-        images, depths_gt = batch['image'].to(
-            self.device), batch['depth'].to(self.device)
-        dataset = batch['dataset'][0]
+        images, depths_gt = batch["image"].to(self.device), batch["depth"].to(
+            self.device
+        )
+        dataset = batch["dataset"][0]
 
         b, c, h, w = images.size()
-        mask = batch["mask"].to(self.device).to(torch.bool)
+
+        # No masks
+        # mask = batch["mask"].to(self.device).to(torch.bool)
 
         losses = {}
 
         with amp.autocast(enabled=self.config.use_amp):
 
             output = self.model(images)
-            pred_depths = output['metric_depth']
+            pred_depths = output["metric_depth"]
 
+            # Pass mask as None since we don't use it.
             l_si, pred = self.silog_loss(
-                pred_depths, depths_gt, mask=mask, interpolate=True, return_interpolated=True)
+                pred_depths,
+                depths_gt,
+                mask=None,
+                interpolate=True,
+                return_interpolated=True,
+            )
             loss = self.config.w_si * l_si
             losses[self.silog_loss.name] = l_si
 
             if self.config.w_grad > 0:
-                l_grad = self.grad_loss(pred, depths_gt, mask=mask)
+                l_grad = self.grad_loss(pred, depths_gt, mask=None)
                 loss = loss + self.config.w_grad * l_grad
                 losses[self.grad_loss.name] = l_grad
             else:
@@ -82,32 +93,43 @@ class Trainer(BaseTrainer):
 
         if self.config.clip_grad > 0:
             self.scaler.unscale_(self.optimizer)
-            nn.utils.clip_grad_norm_(
-                self.model.parameters(), self.config.clip_grad)
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad)
 
         self.scaler.step(self.optimizer)
 
-        if self.should_log and (self.step % int(self.config.log_images_every * self.iters_per_epoch)) == 0:
+        if (
+            self.should_log
+            and (self.step % int(self.config.log_images_every * self.iters_per_epoch))
+            == 0
+        ):
             # -99 is treated as invalid depth in the log_images function and is colored grey.
-            depths_gt[torch.logical_not(mask)] = -99
+            # depths_gt[torch.logical_not(mask)] = -99
 
-            self.log_images(rgb={"Input": images[0, ...]}, depth={"GT": depths_gt[0], "PredictedMono": pred[0]}, prefix="Train",
-                            min_depth=DATASETS_CONFIG[dataset]['min_depth'], max_depth=DATASETS_CONFIG[dataset]['max_depth'])
+            # Directly log ground truth and predicted depth without applying any mask.
+            self.log_images(
+                rgb={"Input": images[0, ...]},
+                depth={"GT": depths_gt[0], "PredictedMono": pred[0]},
+                prefix="Train",
+                min_depth=DATASETS_CONFIG[dataset]["min_depth"],
+                max_depth=DATASETS_CONFIG[dataset]["max_depth"],
+            )
 
             if self.config.get("log_rel", False):
                 self.log_images(
-                    scalar_field={"RelPred": output["relative_depth"][0]}, prefix="TrainRel")
+                    scalar_field={"RelPred": output["relative_depth"][0]},
+                    prefix="TrainRel",
+                )
 
         self.scaler.update()
         self.optimizer.zero_grad()
 
         return losses
-    
+
     @torch.no_grad()
     def eval_infer(self, x):
         with amp.autocast(enabled=self.config.use_amp):
             m = self.model.module if self.config.multigpu else self.model
-            pred_depths = m(x)['metric_depth']
+            pred_depths = m(x)["metric_depth"]
         return pred_depths
 
     @torch.no_grad()
@@ -115,7 +137,7 @@ class Trainer(BaseTrainer):
         # if we are not avoiding the black border, we can just use the normal inference
         if not self.config.get("avoid_boundary", False):
             return self.eval_infer(x)
-        
+
         # otherwise, we need to crop the image to avoid the black border
         # For now, this may be a bit slow due to converting to numpy and back
         # We assume no normalization is done on the input image
@@ -125,7 +147,12 @@ class Trainer(BaseTrainer):
         x_pil = transforms.ToPILImage()(x[0].cpu())
         x_np = np.array(x_pil, dtype=np.uint8)
         black_border_params = get_black_border(x_np)
-        top, bottom, left, right = black_border_params.top, black_border_params.bottom, black_border_params.left, black_border_params.right
+        top, bottom, left, right = (
+            black_border_params.top,
+            black_border_params.bottom,
+            black_border_params.left,
+            black_border_params.right,
+        )
         x_np_cropped = x_np[top:bottom, left:right, :]
         x_cropped = transforms.ToTensor()(Image.fromarray(x_np_cropped))
 
@@ -134,29 +161,37 @@ class Trainer(BaseTrainer):
 
         # resize the prediction to x_np_cropped's size
         pred_depths_cropped = nn.functional.interpolate(
-            pred_depths_cropped, size=(x_np_cropped.shape[0], x_np_cropped.shape[1]), mode="bilinear", align_corners=False)
-        
+            pred_depths_cropped,
+            size=(x_np_cropped.shape[0], x_np_cropped.shape[1]),
+            mode="bilinear",
+            align_corners=False,
+        )
 
         # pad the prediction back to the original size
-        pred_depths = torch.zeros((1, 1, x_np.shape[0], x_np.shape[1]), device=pred_depths_cropped.device, dtype=pred_depths_cropped.dtype)
+        pred_depths = torch.zeros(
+            (1, 1, x_np.shape[0], x_np.shape[1]),
+            device=pred_depths_cropped.device,
+            dtype=pred_depths_cropped.dtype,
+        )
         pred_depths[:, :, top:bottom, left:right] = pred_depths_cropped
 
         return pred_depths
 
-
-
     def validate_on_batch(self, batch, val_step):
-        images = batch['image'].to(self.device)
-        depths_gt = batch['depth'].to(self.device)
-        dataset = batch['dataset'][0]
-        mask = batch["mask"].to(self.device)
-        if 'has_valid_depth' in batch:
-            if not batch['has_valid_depth']:
+        images = batch["image"].to(self.device)
+        depths_gt = batch["depth"].to(self.device)
+        dataset = batch["dataset"][0]
+        # mask = batch["mask"].to(self.device)
+
+        # Check for valid depth if available.
+        if "has_valid_depth" in batch:
+            if not batch["has_valid_depth"]:
                 return None, None
 
+        # Prepare ground truth and prediction tensors.
         depths_gt = depths_gt.squeeze().unsqueeze(0).unsqueeze(0)
-        mask = mask.squeeze().unsqueeze(0).unsqueeze(0)
-        if dataset == 'nyu':
+        # mask = mask.squeeze().unsqueeze(0).unsqueeze(0)
+        if dataset == "nyu":
             pred_depths = self.crop_aware_infer(images)
         else:
             pred_depths = self.eval_infer(images)
@@ -164,14 +199,21 @@ class Trainer(BaseTrainer):
 
         with amp.autocast(enabled=self.config.use_amp):
             l_depth = self.silog_loss(
-                pred_depths, depths_gt, mask=mask.to(torch.bool), interpolate=True)
+                pred_depths, depths_gt, mask=None.to(torch.bool), interpolate=True
+            )
 
         metrics = compute_metrics(depths_gt, pred_depths, **self.config)
         losses = {f"{self.silog_loss.name}": l_depth.item()}
 
         if val_step == 1 and self.should_log:
-            depths_gt[torch.logical_not(mask)] = -99
-            self.log_images(rgb={"Input": images[0]}, depth={"GT": depths_gt[0], "PredictedMono": pred_depths[0]}, prefix="Test",
-                            min_depth=DATASETS_CONFIG[dataset]['min_depth'], max_depth=DATASETS_CONFIG[dataset]['max_depth'])
+            # Log images without mask processing.
+            # depths_gt[torch.logical_not(mask)] = -99
+            self.log_images(
+                rgb={"Input": images[0]},
+                depth={"GT": depths_gt[0], "PredictedMono": pred_depths[0]},
+                prefix="Test",
+                min_depth=DATASETS_CONFIG[dataset]["min_depth"],
+                max_depth=DATASETS_CONFIG[dataset]["max_depth"],
+            )
 
         return metrics, losses
