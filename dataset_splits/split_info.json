@@ -1,0 +1,13 @@
+{
+  "data_root": "/data",
+  "total_samples": 69588,
+  "train_samples": 47585,
+  "val_samples": 10033,
+  "test_samples": 11970,
+  "train_file": "/app/./dataset_splits/diode_train_files.txt",
+  "val_file": "/app/./dataset_splits/diode_val_files.txt",
+  "test_file": "/app/./dataset_splits/diode_test_files.txt",
+  "train_ratio": 0.6838104270851296,
+  "val_ratio": 0.14417715698108868,
+  "test_ratio": 0.1720124159337817
+}

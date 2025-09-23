@@ -1,0 +1,4 @@
+# Clean files found on 20250923_131048
+# Total clean files: 0
+# Data root: /mnt/fast-data/monocular/data/diode-tnc
+

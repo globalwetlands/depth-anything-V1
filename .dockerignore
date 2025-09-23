@@ -1,0 +1,94 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+DOCKER_README.md
+run_docker.sh
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Large files and directories
+*.pth
+*.pt
+*.pkl
+*.h5
+*.hdf5
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.gif
+
+# Data directories (will be mounted)
+data/
+outputs/
+checkpoints/
+
+# Documentation
+*.md
+docs/
+
+# Test files
+test_*
+*_test.py
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp

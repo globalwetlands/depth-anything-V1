@@ -35,23 +35,31 @@ class ToTensor(object):
     def __init__(self):
         # self.normalize = transforms.Normalize(
         #     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.normalize = lambda x : x
+        self.normalize = None  # No normalization, just pass through
         self.resize = transforms.Resize(480)
+    
+    def _normalize(self, x):
+        """Identity function for normalization (just pass through)"""
+        return x
 
     def __call__(self, sample):
-        image, depth = sample['image'], sample['depth']
+        image, depth, mask = sample['image'], sample['depth'], sample['mask']
         image = self.to_tensor(image)
-        image = self.normalize(image)
+        image = self._normalize(image)
         depth = self.to_tensor(depth)
+        mask = self.to_tensor(mask)
 
         image = self.resize(image)
 
-        return {'image': image, 'depth': depth, 'dataset': "diode"}
+        return {'image': image, 'depth': depth, 'mask': mask, 'dataset': "diode_outdoor"}
 
     def to_tensor(self, pic):
 
         if isinstance(pic, np.ndarray):
-            img = torch.from_numpy(pic.transpose((2, 0, 1)))
+            if pic.ndim == 3:
+                img = torch.from_numpy(pic.transpose((2, 0, 1)))
+            else:
+                img = torch.from_numpy(pic)
             return img
 
         #         # handle PIL Image
@@ -102,9 +110,10 @@ class DIODE(Dataset):
         valid = np.load(depth_mask_path)  # binary
 
         # depth[depth > 8] = -1
-        # depth = depth[..., None]
+        depth = depth[..., None]  # Add channel dimension
+        valid = valid[..., None]  # Add channel dimension to mask
 
-        sample = dict(image=image, depth=depth, valid=valid)
+        sample = dict(image=image, depth=depth, mask=valid)
 
         # return sample
         sample = self.transform(sample)

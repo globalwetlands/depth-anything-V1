@@ -40,6 +40,13 @@ from tqdm import tqdm
 from zoedepth.utils.config import flatten
 from zoedepth.utils.misc import RunningAverageDict, colorize, colors
 
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD_AVAILABLE = True
+except ImportError:
+    TENSORBOARD_AVAILABLE = False
+    print("Warning: TensorBoard not available. Install with: pip install tensorboard")
+
 
 def is_rank_zero(args):
     return args.rank == 0
@@ -154,6 +161,13 @@ class BaseTrainer:
                 ',') if self.config.tags != '' else None
             wandb.init(project=self.config.project, name=self.config.experiment_id, config=flatten(self.config), dir=self.config.root,
                        tags=tags, notes=self.config.notes, settings=wandb.Settings(start_method="fork"))
+# Initialize TensorBoard writer
+        self.tb_writer = None
+        if TENSORBOARD_AVAILABLE and self.should_log:
+            tb_log_dir = os.path.join(self.config.root, 'tensorboard_logs', self.config.experiment_id)
+            os.makedirs(tb_log_dir, exist_ok=True)
+            self.tb_writer = SummaryWriter(tb_log_dir)
+            print(f"TensorBoard logging to: {tb_log_dir}")
 
         self.model.train()
         self.step = 0
@@ -188,6 +202,10 @@ class BaseTrainer:
                 losses = self.train_on_batch(batch, i)
                 # print(f"trained batch {self.step+1} on rank {self.config.rank}")
 
+                # Clear GPU cache periodically to prevent memory accumulation
+                if i % 100 == 0:
+                    torch.cuda.empty_cache()
+
                 self.raise_if_nan(losses)
                 if is_rank_zero(self.config) and self.config.print_losses:
                     pbar.set_description(
@@ -197,6 +215,9 @@ class BaseTrainer:
                 if self.should_log and self.step % 50 == 0:
                     wandb.log({f"Train/{name}": loss.item()
                               for name, loss in losses.items()}, step=self.step)
+                # TensorBoard logging
+                for name, loss in losses.items():
+                    self.tb_log_scalar(f"Train/{name}", loss.item(), self.step)
 
                 self.step += 1
 
@@ -212,6 +233,8 @@ class BaseTrainer:
                         ################################# Validation loop ##################################################
                         # validate on the entire validation set in every process but save only from rank 0, I know, inefficient, but avoids divergence of processes
                         metrics, test_losses = self.validate()
+                        # Clear GPU cache after validation to free memory
+                        torch.cuda.empty_cache()
                         # print("Validated: {}".format(metrics))
                         if self.should_log:
                             wandb.log(
@@ -219,6 +242,11 @@ class BaseTrainer:
 
                             wandb.log({f"Metrics/{k}": v for k,
                                       v in metrics.items()}, step=self.step)
+                            # TensorBoard logging
+                            for name, tloss in test_losses.items():
+                                self.tb_log_scalar(f"Test/{name}", tloss, self.step)
+                            for k, v in metrics.items():
+                                self.tb_log_scalar(f"Metrics/{k}", v, self.step)
 
                             if (metrics[self.metric_criterion] < best_loss) and self.should_write:
                                 self.save_checkpoint(
@@ -242,6 +270,8 @@ class BaseTrainer:
 
             ################################# Validation loop ##################################################
             metrics, test_losses = self.validate()
+            # Clear GPU cache after validation to free memory
+            torch.cuda.empty_cache()
             # print("Validated: {}".format(metrics))
             if self.should_log:
                 wandb.log({f"Test/{name}": tloss for name,
@@ -324,3 +354,18 @@ class BaseTrainer:
         table = wandb.Table(data=data, columns=["label", "value"])
         wandb.log({title: wandb.plot.bar(table, "label",
                   "value", title=title)}, step=self.step)
+    def tb_log_scalar(self, tag, value, step):
+        """Log scalar to TensorBoard"""
+        if self.tb_writer is not None:
+            self.tb_writer.add_scalar(tag, value, step)
+    
+    def tb_log_image(self, tag, image, step):
+        """Log image to TensorBoard"""
+        if self.tb_writer is not None:
+            self.tb_writer.add_image(tag, image, step)
+    
+    def tb_log_scalars(self, main_tag, tag_scalar_dict, step):
+        """Log multiple scalars to TensorBoard"""
+        if self.tb_writer is not None:
+            self.tb_writer.add_scalars(main_tag, tag_scalar_dict, step)
+

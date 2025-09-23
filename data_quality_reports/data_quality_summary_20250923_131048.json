@@ -1,0 +1,38 @@
+{
+  "timestamp": "20250923_131048",
+  "data_root": "/mnt/fast-data/monocular/data/diode-tnc",
+  "thresholds": {
+    "max_depth": 100.0,
+    "min_depth": 0.001,
+    "min_mask_ratio": 0.01,
+    "extreme_depth_ratio": 0.05
+  },
+  "statistics": {
+    "total_samples": 69588,
+    "valid_samples": 0,
+    "problematic_samples": 208764,
+    "depth_stats": {
+      "min": Infinity,
+      "max": -Infinity,
+      "mean": 0.0
+    },
+    "mask_stats": {
+      "min_valid_ratio": 1.0,
+      "max_valid_ratio": 0.0,
+      "mean_valid_ratio": 0.0
+    }
+  },
+  "issue_counts": {
+    "negative_depths": 0,
+    "zero_depths": 0,
+    "extreme_depths": 0,
+    "empty_masks": 0,
+    "sparse_masks": 0,
+    "corrupted_files": 0,
+    "missing_files": 208764,
+    "dimension_mismatches": 0,
+    "dtype_issues": 0,
+    "file_read_errors": 0
+  },
+  "total_issues": 208764
+}

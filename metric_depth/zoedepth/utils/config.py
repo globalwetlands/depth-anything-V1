@@ -172,9 +172,21 @@ DATASETS_CONFIG = {
         "min_depth": 1e-3,
         "max_depth": 10
     },
+    # "diode_outdoor": {
+    #     "dataset": "diode_outdoor",
+    #     "diode_outdoor_root": os.path.join(HOME_DIR, "DIODE/val/outdoor/"),
+    #     "eigen_crop": False,
+    #     "garg_crop": True,
+    #     "do_kb_crop": False,
+    #     "min_depth_eval": 1e-3,
+    #     "max_depth_eval": 80,
+    #     "min_depth": 1e-3,
+    #     "max_depth": 80
+    # },
     "diode_outdoor": {
         "dataset": "diode_outdoor",
-        "diode_outdoor_root": os.path.join(HOME_DIR, "DIODE/val/outdoor/"),
+        # "diode_outdoor_root": os.path.join(HOME_DIR, "shortcuts/datasets/diode_outdoor/"),
+        "diode_outdoor_root": "/data",
         "eigen_crop": False,
         "garg_crop": True,
         "do_kb_crop": False,
@@ -375,7 +387,7 @@ def get_config(model_name, mode='train', dataset=None, **overwrite_kwargs):
     check_choices("Model", model_name, ["zoedepth", "zoedepth_nk"])
     check_choices("Mode", mode, ["train", "infer", "eval"])
     if mode == "train":
-        check_choices("Dataset", dataset, ["nyu", "kitti", "mix", None])
+        check_choices("Dataset", dataset, ["nyu", "kitti", "diode_outdoor", "mix", None])
 
     config = flatten({**COMMON_CONFIG, **COMMON_TRAINING_CONFIG})
     config = update_model_config(config, mode, model_name)

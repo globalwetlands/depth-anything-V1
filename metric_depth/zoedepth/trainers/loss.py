@@ -64,6 +64,14 @@ class SILogLoss(nn.Module):
 
             input = input[mask]
             target = target[mask]
+            
+            # Handle edge case where mask has no valid pixels
+            if input.numel() == 0:
+                # Return a small loss value instead of NaN
+                loss = torch.tensor(0.01, device=input.device, requires_grad=True)
+                if not return_interpolated:
+                    return loss
+                return loss, intr_input
 
         with amp.autocast(enabled=False):  # amp causes NaNs in this loss function
             alpha = 1e-7

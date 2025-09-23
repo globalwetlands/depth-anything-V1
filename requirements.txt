@@ -1,6 +1,6 @@
 gradio_imageslider
-gradio==4.14.0
+gradio
 torch
 torchvision
-opencv-python
+opencv-python-headless
 huggingface_hub

@@ -1,0 +1,34 @@
+services:
+  depth-anything:
+    build: .
+    shm_size: '2gb'
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - /mnt/fast-data/monocular/data/diode-tnc:/data:ro
+      - /mnt/fast-data/monocular/outputs:/outputs
+      - ./checkpoints:/app/metric_depth/checkpoints
+      - ./tensorboard_logs:/app/tensorboard_logs
+      - ./training_logs:/app/training_logs
+      - ./dataset_splits:/app/dataset_splits
+      - ./data_quality_reports:/app/data_quality_reports
+    working_dir: /app/metric_depth
+    command: ["train"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./tensorboard_logs:/logs:ro
+    command: tensorboard --logdir=/logs --host=0.0.0.0 --reload_interval=1
+    profiles:
+      - monitoring
